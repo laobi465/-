@@ -1,0 +1,33 @@
+# 代理池服务 - Docker Compose 部署
+# 用法: docker compose up -d --build
+services:
+  proxy-pool:
+    build: .
+    image: proxy-pool:latest
+    container_name: proxy-pool
+    restart: unless-stopped
+    ports:
+      # API + WebSocket + 前端页面
+      - "7999:7999"
+      # 轮换隧道代理（HTTP + HTTPS CONNECT）
+      - "8080:8080"
+    volumes:
+      # 持久化代理数据，重启不丢失
+      - proxy-data:/app/server/data
+    environment:
+      # ===== 基础配置 =====
+      HOST: 0.0.0.0
+      API_PORT: 7999
+      TUNNEL_HOST: 0.0.0.0
+      TUNNEL_PORT: 8080
+      DATA_FILE: /app/server/data/proxies.json
+      # ===== 可选：受限网络下经 egress 网关访问外网 =====
+      # 如果服务器本身禁止直连出站，可配置 HTTP 代理网关。
+      # 留空则直连（绝大多数 VPS 不需要填）。
+      # HTTP_PROXY: ""
+      # HTTPS_PROXY: ""
+    # 容器需要能访问外网以校验代理，保持 host 网络栈可选
+    # network_mode: host
+
+volumes:
+  proxy-data:
