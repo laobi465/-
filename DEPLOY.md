@@ -279,7 +279,7 @@ curl -X POST http://你的服务器IP:7999/api/version/check
 curl -X POST http://你的服务器IP:7999/api/update
 ```
 
-> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。定时巡检每 1 分钟请求一次 GitHub API，匿名接口限流为每小时 60 次——默认 1 分钟间隔每小时仅 60 次，刚好不超限；如需调整频率，修改 `server/src/config.ts` 的 `update.checkIntervalMs` 后重新构建。
+> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。版本检测使用 `git ls-remote origin` 而非 GitHub REST API，**没有匿名接口 60次/小时 的限流问题**，1 分钟检查间隔稳定可靠。如需调整频率，修改 `server/src/config.ts` 的 `update.checkIntervalMs` 后重新构建。
 
 ### Q8：如何修改隧道代理的账号密码？
 

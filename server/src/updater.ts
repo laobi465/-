@@ -1,5 +1,5 @@
 // Self-update module: detect new commits on GitHub and pull + restart.
-import { execSync, spawn } from 'node:child_process';
+import { exec, execSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,17 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 let cached: VersionInfo | null = null;
 let updating = false;
+
+/** Promisified exec with a timeout, returning stdout. */
+function execAsync(cmd: string, opts: { cwd: string; timeoutMs: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    exec(
+      cmd,
+      { cwd: opts.cwd, encoding: 'utf-8', timeout: opts.timeoutMs },
+      (err, stdout) => (err ? reject(err) : resolve(stdout)),
+    );
+  });
+}
 
 export interface VersionInfo {
   version: string;
@@ -41,22 +52,26 @@ function localCommit(): string {
   }
 }
 
-/** Get the latest commit hash on the remote branch via GitHub API (no token needed). */
+/**
+ * Get the latest commit hash on the remote branch via `git ls-remote`.
+ * Unlike the GitHub REST API (anonymous limit: 60 req/hour), ls-remote hits
+ * the git smart-HTTP protocol which has no per-IP rate limit, so the
+ * 1-minute scheduler check never gets throttled. Requires git in PATH
+ * (the Docker runtime image installs it; local dev has it too).
+ */
 async function remoteCommit(): Promise<string | null> {
-  const { repo, branch } = config.update;
-  const url = `https://api.github.com/repos/${repo}/commits/${branch}`;
+  const { branch } = config.update;
   try {
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'proxy-pool-updater',
-      },
-      signal: AbortSignal.timeout(8000),
+    const out = await execAsync(`git ls-remote origin refs/heads/${branch}`, {
+      cwd: ROOT,
+      timeoutMs: 10000,
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { sha?: string };
-    return data.sha ? data.sha.slice(0, 7) : null;
-  } catch {
+    // Output format: "<full-sha>\trefs/heads/main\n"
+    const sha = out.trim().split(/\s+/)[0];
+    if (!sha) return null;
+    return sha.slice(0, 7);
+  } catch (e) {
+    log('ls-remote failed:', (e as Error).message);
     return null;
   }
 }
