@@ -43,4 +43,11 @@ export const config = {
   },
 
   dataFile: process.env.DATA_FILE || 'server/data/proxies.json',
+
+  // Self-update: check GitHub for new commits every 1 minute.
+  update: {
+    repo: 'laobi465/-',
+    branch: 'main',
+    checkIntervalMs: 1 * MIN,
+  },
 } as const;

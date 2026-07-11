@@ -20,7 +20,7 @@ import { cn, countryFlag } from '@/lib/utils';
 import type { Protocol } from '@/types';
 
 export default function Dashboard() {
-  const { stats, progress, proxies, connected } = useProxySocket();
+  const { stats, progress, proxies, version, connected } = useProxySocket();
 
   const [protocol, setProtocol] = useState<Protocol | 'all'>('all');
   const [pure, setPure] = useState<PureFilter>('all');
@@ -84,6 +84,7 @@ export default function Dashboard() {
         onRefresh={onRefresh}
         refreshing={refreshing || !!stats?.refreshing}
         now={now}
+        version={version}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">

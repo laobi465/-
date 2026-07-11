@@ -7,6 +7,7 @@ import { config } from './config';
 import { store } from './store';
 import * as scheduler from './scheduler';
 import { getRealIp } from './validator';
+import { getVersionInfo, performUpdate } from './updater';
 
 const log = (...a: unknown[]) => console.log('[api]', ...a);
 
@@ -116,6 +117,14 @@ export function startApi() {
         return sendJson(res, { ...result, progress: scheduler.getProgress() });
       }
 
+      if (pathname === '/api/version')
+        return sendJson(res, getVersionInfo());
+
+      if (pathname === '/api/update' && req.method === 'POST') {
+        const result = await performUpdate();
+        return sendJson(res, result, result.ok ? 200 : 500);
+      }
+
       // Anything else: serve the built frontend (production) or 404 (dev).
       if (fs.existsSync(DIST_DIR)) return serveStatic(res, pathname);
       sendJson(res, { error: 'not found', path: pathname }, 404);
@@ -138,6 +147,7 @@ export function startApi() {
         stats: currentStats(),
         progress: scheduler.getProgress(),
         proxies: store.snapshot(),
+        version: getVersionInfo(),
       });
       for (const client of wss.clients) {
         if (client.readyState === 1) client.send(msg);
@@ -152,6 +162,7 @@ export function startApi() {
         stats: currentStats(),
         progress: scheduler.getProgress(),
         proxies: store.snapshot(),
+        version: getVersionInfo(),
       }),
     );
   });

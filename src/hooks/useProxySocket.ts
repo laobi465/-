@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Progress, Stats, StoredProxy } from '@/types';
+import type { Progress, Stats, StoredProxy, VersionInfo } from '@/types';
 
 interface LiveState {
   stats: Stats | null;
   progress: Progress;
   proxies: StoredProxy[];
+  version: VersionInfo | null;
   connected: boolean;
 }
 
@@ -25,6 +26,7 @@ export function useProxySocket() {
     stats: null,
     progress: EMPTY_PROGRESS,
     proxies: [],
+    version: null,
     connected: false,
   });
   const wsRef = useRef<WebSocket | null>(null);
@@ -50,6 +52,7 @@ export function useProxySocket() {
               stats: msg.stats,
               progress: msg.progress ?? EMPTY_PROGRESS,
               proxies: msg.proxies ?? [],
+              version: msg.version ?? null,
               connected: true,
             });
           }

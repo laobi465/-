@@ -54,9 +54,19 @@ export interface TunnelInfo {
   poolSize: number;
 }
 
+export interface VersionInfo {
+  version: string;
+  commit: string;
+  remoteCommit: string | null;
+  hasUpdate: boolean;
+  lastCheckedAt: number | null;
+  updating: boolean;
+}
+
 export interface SnapshotMessage {
   type: 'snapshot';
   stats: Stats;
   progress: Progress;
   proxies: StoredProxy[];
+  version?: VersionInfo;
 }

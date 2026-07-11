@@ -1,6 +1,7 @@
 import { Server, Activity, RefreshCw } from 'lucide-react';
 import { cn, countdown, formatTime, timeAgo } from '@/lib/utils';
-import type { Stats, Progress } from '@/types';
+import { VersionBadge } from '@/components/VersionBadge';
+import type { Stats, Progress, VersionInfo } from '@/types';
 
 interface HeaderProps {
   stats: Stats | null;
@@ -9,9 +10,10 @@ interface HeaderProps {
   onRefresh: () => void;
   refreshing: boolean;
   now: number;
+  version: VersionInfo | null;
 }
 
-export function Header({ stats, progress, connected, onRefresh, refreshing, now }: HeaderProps) {
+export function Header({ stats, progress, connected, onRefresh, refreshing, now, version }: HeaderProps) {
   const nextIn = countdown(stats?.nextRefreshAt);
   const pct =
     progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : stats?.refreshing ? 0 : 100;
@@ -33,6 +35,7 @@ export function Header({ stats, progress, connected, onRefresh, refreshing, now 
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <VersionBadge version={version} />
         <StatusPill
           ok={connected}
           label={connected ? '实时连接' : '断开重连中'}
