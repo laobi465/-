@@ -16,6 +16,14 @@ export function getVersionInfo() {
   return getJson<VersionInfo>(`${base}/api/version`);
 }
 
+/** Force a fresh GitHub update check on the backend; returns the latest info. */
+export function checkVersionUpdate() {
+  return fetch(`${base}/api/version/check`, { method: 'POST' }).then((res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json() as Promise<VersionInfo>;
+  });
+}
+
 export async function triggerRefresh(): Promise<{
   fetched: number;
   validated: number;

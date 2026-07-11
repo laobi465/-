@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Progress, Stats, StoredProxy, VersionInfo } from '@/types';
+import { checkVersionUpdate } from '@/lib/api';
 
 interface LiveState {
   stats: Stats | null;
@@ -80,6 +81,17 @@ export function useProxySocket() {
       closed = true;
       wsRef.current?.close();
     };
+  }, []);
+
+  // On page load / refresh, trigger a fresh GitHub update check so the version
+  // badge reflects the latest status immediately (the backend also broadcasts
+  // the result over the open WebSocket).
+  useEffect(() => {
+    checkVersionUpdate()
+      .then((v) => setState((s) => ({ ...s, version: v })))
+      .catch(() => {
+        // network error / server down — WebSocket snapshot will catch up
+      });
   }, []);
 
   return state;

@@ -74,7 +74,8 @@ curl -x http://你的服务器IP:8080 https://httpbin.org/ip
 | `/api/proxies` | GET | 代理列表，支持 `?protocol=http&pure=true&country=US&limit=100` |
 | `/api/tunnel` | GET | 隧道代理信息（含对外访问地址、公网 IP、代理池大小） |
 | `/api/refresh` | POST | 手动触发刷新 |
-| `/api/version` | GET | 当前版本号（git commit）与是否有可用更新 |
+| `/api/version` | GET | 当前版本号（git commit）与是否有可用更新（读取缓存） |
+| `/api/version/check` | POST | 强制向 GitHub 重新检查更新，返回最新版本信息并广播给所有监控页 |
 | `/api/update` | POST | 拉取 GitHub 最新代码、重新构建并重启服务 |
 
 示例：
@@ -237,20 +238,25 @@ curl http://你的服务器IP:7999/api/tunnel
 ### Q7：如何使用自动更新功能？
 
 监控页面右上角显示当前版本号，右侧箭头可展开查看更新状态：
-- 后端每 1 分钟自动检查 GitHub 仓库是否有新 commit
+- **页面刷新即自动检查**：每次打开或刷新监控页时，前端会自动调用 `/api/version/check` 向 GitHub 拉取最新提交状态，版本徽标立即反映是否有更新，无需等待定时任务
+- **定时巡检**：后端每 1 分钟自动检查 GitHub 仓库是否有新 commit（兜底机制，即便没有页面打开也能发现更新）
 - 检测到更新时，展开面板会显示"立即更新并重启"按钮
 - 点击后后端会执行 `git pull` → 重新构建 → 重启进程，无需 SSH 登录服务器
+- **移动端适配**：展开面板在手机上以居中浮层形式展示（带半透明遮罩，点击外部收起），不会溢出屏幕；桌面端保持右上角下拉样式
 
 也可通过 API 手动触发：
 ```bash
-# 查看版本与更新状态
+# 读取缓存版本（立即返回，不请求 GitHub）
 curl http://你的服务器IP:7999/api/version
 
-# 触发更新并重启
+# 强制重新检查 GitHub（页面刷新时前端自动调用此接口）
+curl -X POST http://你的服务器IP:7999/api/version/check
+
+# 拉取最新代码并重启
 curl -X POST http://你的服务器IP:7999/api/update
 ```
 
-> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。若修改了远程地址或使用了私有仓库，需确保容器内配置了访问凭证。
+> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。若修改了远程地址或使用了私有仓库，需确保容器内配置了访问凭证。`/api/version/check` 会请求 GitHub API，刷新过于频繁可能触发其匿名接口限流（每小时 60 次），正常使用不受影响。
 
 ---
 

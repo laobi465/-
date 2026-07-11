@@ -7,7 +7,7 @@ import { config } from './config';
 import { store } from './store';
 import * as scheduler from './scheduler';
 import { getRealIp } from './validator';
-import { getVersionInfo, performUpdate } from './updater';
+import { getVersionInfo, performUpdate, checkForUpdate } from './updater';
 
 const log = (...a: unknown[]) => console.log('[api]', ...a);
 
@@ -119,6 +119,14 @@ export function startApi() {
 
       if (pathname === '/api/version')
         return sendJson(res, getVersionInfo());
+
+      if (pathname === '/api/version/check' && req.method === 'POST') {
+        // Force a fresh check against GitHub so a page refresh shows the latest
+        // status immediately (instead of waiting up to 1min for the scheduler).
+        const info = await checkForUpdate();
+        broadcast();
+        return sendJson(res, info);
+      }
 
       if (pathname === '/api/update' && req.method === 'POST') {
         const result = await performUpdate();
