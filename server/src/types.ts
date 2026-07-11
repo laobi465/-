@@ -52,6 +52,8 @@ export interface Stats {
 export interface TunnelInfo {
   host: string;
   port: number;
+  username: string;
+  password: string;
   address: string;
   protocols: string[];
   rotating: boolean;

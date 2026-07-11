@@ -143,10 +143,16 @@ class ProxyStore extends EventEmitter {
       config.tunnel.publicHost ||
       realIp ||
       (config.tunnel.host !== '0.0.0.0' ? config.tunnel.host : '127.0.0.1');
+    const { username, password } = config.tunnel;
+    // Display/copy format: user:pass@host:port — usable as
+    // http://user:pass@host:port in browsers / curl -x.
+    const address = `${username}:${password}@${host}:${config.tunnel.port}`;
     return {
       host,
       port: config.tunnel.port,
-      address: `${host}:${config.tunnel.port}`,
+      username,
+      password,
+      address,
       protocols: ['http', 'https', 'socks4', 'socks5'],
       rotating: true,
       realIp,

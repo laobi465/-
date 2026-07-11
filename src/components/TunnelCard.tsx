@@ -22,12 +22,15 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
     };
   }, []);
 
-  const address = info?.address ?? '127.0.0.1:8080';
-  const isLocal = !info || address.startsWith('127.');
+  // address = "user:pass@host:port" (display); copyValue = "http://user:pass@host:port"
+  const address = info?.address ?? 'proxy:proxy@127.0.0.1:8080';
+  const copyValue = `http://${address}`;
+  // isLocal now checks the host part (address no longer starts with the host).
+  const isLocal = !info || (info.host || '127.0.0.1').startsWith('127.');
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(address);
+      await navigator.clipboard.writeText(copyValue);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -53,7 +56,7 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
         <button
           onClick={copy}
           className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/60 text-slate-300 transition hover:bg-slate-800"
-          title="复制地址"
+          title={`复制 ${copyValue}`}
         >
           {copied ? (
             <Check className="h-4 w-4 text-emerald-400" />
@@ -73,10 +76,13 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
         <Meta label="协议" value={info?.protocols.join(' / ') ?? 'http · https'} />
         <Meta label="代理池大小" value={`${info?.poolSize ?? poolSize}`} />
         <Meta
+          label="代理账号"
+          value={info ? `${info.username}:${info.password}` : 'proxy:proxy'}
+        />
+        <Meta
           label="本机真实IP"
           value={info?.realIp ?? '未知'}
         />
-        <Meta label="模式" value="HTTP + HTTPS CONNECT" />
       </div>
 
       <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/50 p-3">
@@ -84,10 +90,11 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
           <Globe className="h-3 w-3" /> 使用示例
         </div>
         <pre className="overflow-x-auto text-[11px] leading-relaxed text-slate-300">
-{`# 通过隧道代理访问（自动从纯净代理池轮换）
-curl -x http://${address} https://httpbin.org/ip
+{`# 点击复制按钮得到 http://user:pass@host:port
+# curl 用法（自动从纯净代理池轮换出口 IP）
+curl -x ${copyValue} https://httpbin.org/ip
 
-# 浏览器 / 爬虫设置为该 HTTP 代理即可
+# 浏览器 / 爬虫直接填入该 HTTP 代理即可
 # 每次请求自动切换不同的上游纯净 IP`}
         </pre>
       </div>

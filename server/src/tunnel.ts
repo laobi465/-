@@ -7,6 +7,46 @@ import type { StoredProxy } from './types';
 
 const log = (...a: unknown[]) => console.log('[tunnel]', ...a);
 
+/** The expected Basic credential string (base64 of "user:pass"). */
+const EXPECTED_B64 = Buffer.from(
+  `${config.tunnel.username}:${config.tunnel.password}`,
+).toString('base64');
+
+/**
+ * Validate the Proxy-Authorization header on an incoming request.
+ * Returns true if the request may proceed; sends a 407 challenge otherwise.
+ * Works for both plain HTTP forwards and CONNECT (caller handles the socket).
+ */
+function checkAuth(req: http.IncomingMessage): boolean {
+  const header = req.headers['proxy-authorization'] || '';
+  if (!header) return false;
+  const m = /^Basic\s+(.+)$/i.exec(header.trim());
+  return !!m && m[1] === EXPECTED_B64;
+}
+
+/** Send a 407 Proxy Authentication Required challenge to a plain HTTP client. */
+function rejectAuth(res: http.ServerResponse) {
+  res.writeHead(407, {
+    'Proxy-Authenticate': 'Basic realm="proxy-pool"',
+    'Content-Type': 'text/plain; charset=utf-8',
+  });
+  res.end('Proxy authentication required');
+}
+
+/** Send a 407 challenge to a raw CONNECT socket. */
+function rejectAuthSocket(socket: net.Socket) {
+  try {
+    socket.write(
+      'HTTP/1.1 407 Proxy Authentication Required\r\n' +
+        'Proxy-Authenticate: Basic realm="proxy-pool"\r\n' +
+        'Content-Length: 0\r\n\r\n',
+    );
+    socket.end();
+  } catch {
+    socket.destroy();
+  }
+}
+
 /** Establish a CONNECT tunnel through an HTTP proxy. */
 function connectViaHttpProxy(
   proxy: StoredProxy,
@@ -103,6 +143,10 @@ async function pickAndConnect(
 
 /** Handle an HTTPS CONNECT request from the client. */
 function handleConnect(req: http.IncomingMessage, client: net.Socket, head: Buffer) {
+  if (!checkAuth(req)) {
+    rejectAuthSocket(client);
+    return;
+  }
   const sep = (req.url || '').lastIndexOf(':');
   const host = sep === -1 ? req.url || '' : (req.url || '').slice(0, sep);
   const port = sep === -1 ? 443 : Number((req.url || '').slice(sep + 1));
@@ -140,6 +184,10 @@ function handleConnect(req: http.IncomingMessage, client: net.Socket, head: Buff
 
 /** Handle a plain HTTP request by forwarding it through a rotating upstream. */
 function handleHttp(req: http.IncomingMessage, res: http.ServerResponse) {
+  if (!checkAuth(req)) {
+    rejectAuth(res);
+    return;
+  }
   const url = new URL(req.url || '', 'http://dummy.local');
   const host = url.hostname;
   const port = url.port ? Number(url.port) : 80;

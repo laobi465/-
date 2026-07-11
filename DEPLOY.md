@@ -43,27 +43,28 @@ docker compose logs -f
 
 ### 3.1 轮换隧道代理
 
-每次请求自动从纯净代理池轮换上游 IP，无需手动切换：
+隧道代理启用 Basic 认证，监控页面显示的地址格式为 `用户名:密码@IP:端口`，点击复制按钮可得到完整可用的 `http://用户名:密码@IP:端口`。每次请求自动从纯净代理池轮换上游 IP，无需手动切换：
 
 ```bash
 # 通过隧道代理访问（自动轮换出口 IP）
-curl -x http://你的服务器IP:8080 https://httpbin.org/ip
+# 用户名/密码默认为 proxy/proxy，可在 docker-compose.yml 修改
+curl -x http://proxy:proxy@你的服务器IP:8080 https://httpbin.org/ip
 
-# 浏览器 / 爬虫配置
-#   HTTP 代理:  你的服务器IP:8080
-#   HTTPS 代理: 你的服务器IP:8080
+# 浏览器 / 爬虫配置（在代理 URL 中携带账号密码）
+#   HTTP 代理:  proxy:proxy@你的服务器IP:8080
+#   或直接填:  http://proxy:proxy@你的服务器IP:8080
 ```
 
-支持 HTTP 转发与 HTTPS CONNECT 隧道，覆盖 http / https / socks4 / socks5 上游协议。
+支持 HTTP 转发与 HTTPS CONNECT 隧道，覆盖 http / https / socks4 / socks5 上游协议。未携带正确账号密码的请求会被拒绝（返回 `407 Proxy Authentication Required`）。
 
 > **关于监控页面显示的隧道地址**
-> 监控页面"隧道代理地址"栏显示的是客户端实际应访问的地址，按以下优先级解析：
+> 监控页面"隧道代理地址"栏显示的是客户端实际应访问的地址（含账号密码），其 host 部分按以下优先级解析：
 > 1. 环境变量 `TUNNEL_PUBLIC_HOST`（显式指定的域名或公网 IP，优先级最高，适合 NAT / 域名场景）
 > 2. 后端自动检测的服务器公网 IP（通过 ip-api.com 查询，绝大多数 VPS 自动生效）
 > 3. `TUNNEL_HOST`（仅当它不是 `0.0.0.0` 时，即绑定了具体网卡 IP）
 > 4. `127.0.0.1`（本地开发回退，仅当以上都不可用时）
 >
-> 如果页面仍显示 `127.0.0.1:8080`，通常是因为后端检测公网 IP 失败（服务器无法访问 ip-api.com），此时请显式设置 `TUNNEL_PUBLIC_HOST` 为你的服务器公网 IP 或域名。
+> 如果页面 host 部分仍为 `127.0.0.1`，通常是因为后端检测公网 IP 失败（服务器无法访问 ip-api.com），此时请显式设置 `TUNNEL_PUBLIC_HOST` 为你的服务器公网 IP 或域名。
 
 ### 3.2 REST API
 
@@ -108,6 +109,8 @@ curl "http://你的服务器IP:7999/api/proxies?pure=true&limit=10"
 | `API_PORT` | `7999` | API + WebSocket + 前端页面端口 |
 | `TUNNEL_HOST` | `0.0.0.0` | 隧道代理监听地址 |
 | `TUNNEL_PORT` | `8080` | 隧道代理端口 |
+| `TUNNEL_USERNAME` | `proxy` | 隧道代理 Basic 认证用户名（客户端必须在代理 URL 中携带） |
+| `TUNNEL_PASSWORD` | `proxy` | 隧道代理 Basic 认证密码，**生产环境务必修改为强密码** |
 | `TUNNEL_PUBLIC_HOST` | （空） | 对外公布的隧道代理地址（域名或公网 IP）。留空时后端自动检测公网 IP；若自动检测失败或使用 NAT/域名，请显式设置此项 |
 | `DATA_FILE` | `/app/server/data/proxies.json` | 代理持久化文件路径 |
 | `HTTP_PROXY` | （空） | 受限网络下的 egress 网关，见第七节 |

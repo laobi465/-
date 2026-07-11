@@ -20,6 +20,10 @@ services:
       API_PORT: 7999
       TUNNEL_HOST: 0.0.0.0
       TUNNEL_PORT: 8080
+      # 隧道代理 Basic 认证账号密码（客户端需在代理 URL 中携带，格式 user:pass@host:port）
+      # 生产环境强烈建议修改为强密码！默认 proxy/proxy 仅供测试。
+      TUNNEL_USERNAME: proxy
+      TUNNEL_PASSWORD: proxy
       DATA_FILE: /app/server/data/proxies.json
       # ===== 可选：对外公布的隧道代理地址（域名 / 公网 IP）=====
       # 留空时后端会自动检测服务器公网 IP 并显示在监控页面。

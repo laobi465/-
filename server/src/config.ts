@@ -44,6 +44,10 @@ export const config = {
     // When empty, the server falls back to its auto-detected public IP,
     // then to 127.0.0.1 for local development.
     publicHost: process.env.TUNNEL_PUBLIC_HOST || '',
+    // Basic auth credentials the client must present to use the tunnel
+    // (sent via Proxy-Authorization). Advertised as user:pass@host:port.
+    username: process.env.TUNNEL_USERNAME || 'proxy',
+    password: process.env.TUNNEL_PASSWORD || 'proxy',
   },
 
   dataFile: process.env.DATA_FILE || 'server/data/proxies.json',
