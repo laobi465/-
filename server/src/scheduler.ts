@@ -2,11 +2,9 @@ import { config } from './config';
 import { fetchProxyList } from './fetcher';
 import { store } from './store';
 import { validateBatch } from './validator';
-import { checkForUpdate } from './updater';
 
 let refreshTimer: NodeJS.Timeout | null = null;
 let cleanupTimer: NodeJS.Timeout | null = null;
-let updateTimer: NodeJS.Timeout | null = null;
 let refreshing = false;
 let lastRefreshAt: number | null = null;
 let nextRefreshAt: number | null = null;
@@ -82,12 +80,6 @@ export function startScheduler() {
     const removed = store.removeExpired();
     if (removed) console.log(`[scheduler] removed ${removed} expired proxies`);
   }, config.cleanupIntervalMs);
-  // Check GitHub for new commits every 1 minute ("每1分钟拉取对应github项目").
-  updateTimer = setInterval(() => {
-    checkForUpdate().catch((e) => console.warn('[scheduler] update check failed:', (e as Error).message));
-  }, config.update.checkIntervalMs);
-  // Run the first update check immediately so the badge is populated on boot.
-  checkForUpdate().catch((e) => console.warn('[scheduler] update check failed:', (e as Error).message));
   // Kick off the first refresh immediately, then every 5 minutes.
   refresh().finally(scheduleNext);
 }
@@ -95,5 +87,4 @@ export function startScheduler() {
 export function stopScheduler() {
   if (refreshTimer) clearTimeout(refreshTimer);
   if (cleanupTimer) clearInterval(cleanupTimer);
-  if (updateTimer) clearInterval(updateTimer);
 }
