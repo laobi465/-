@@ -115,13 +115,16 @@ export async function performUpdate(): Promise<{ ok: boolean; message: string }>
     });
     log('git pull done');
 
-    // 2. reinstall dependencies (root + server) in case package.json changed
+    // 2. reinstall dependencies. The root needs devDependencies too
+    //    (typescript / vite / tailwind) to rebuild the frontend, so we do
+    //    a full install there. The server runs via tsx and only needs
+    //    runtime deps.
     try {
-      execSync('npm install --omit=dev --no-audit --no-fund', {
+      execSync('npm install --no-audit --no-fund', {
         cwd: ROOT,
         encoding: 'utf-8',
         stdio: 'pipe',
-        timeout: 120000,
+        timeout: 180000,
       });
       execSync('npm install --omit=dev --no-audit --no-fund', {
         cwd: path.join(ROOT, 'server'),
@@ -134,7 +137,22 @@ export async function performUpdate(): Promise<{ ok: boolean; message: string }>
       log('dep reinstall skipped/failed (non-fatal):', (e as Error).message);
     }
 
-    // 3. schedule restart after the response is sent
+    // 3. rebuild the frontend (dist) so UI changes show up after restart.
+    //    Without this, git pull updates the source but the served static
+    //    assets stay stale — the dashboard would keep showing the old UI.
+    try {
+      execSync('npm run build', {
+        cwd: ROOT,
+        encoding: 'utf-8',
+        stdio: 'pipe',
+        timeout: 180000,
+      });
+      log('frontend rebuilt');
+    } catch (e) {
+      log('frontend rebuild failed (non-fatal):', (e as Error).message);
+    }
+
+    // 4. schedule restart after the response is sent
     setTimeout(() => restart(), 500);
     return { ok: true, message: '更新完成，服务正在重启…' };
   } catch (err) {

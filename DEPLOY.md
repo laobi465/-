@@ -261,11 +261,11 @@ curl http://你的服务器IP:7999/api/tunnel
 - **页面刷新即自动检查**：每次打开或刷新监控页时，前端会自动调用 `/api/version/check` 向 GitHub 拉取最新提交状态，版本徽标立即反映是否有更新
 - **定时巡检**：后端每 **1 分钟**自动检查 GitHub 仓库是否有新 commit，即便不刷新页面也能发现更新并更新徽标
 - 检测到更新时，展开面板会显示"立即更新并重启"按钮
-- 点击后后端会执行 `git fetch origin && git reset --hard origin/main` → 重装依赖 → 重启进程，无需 SSH 登录服务器
+- 点击后后端会执行 `git fetch origin && git reset --hard origin/main` → 重装依赖（含前端构建工具链）→ `npm run build` 重建前端 → 重启进程，无需 SSH 登录服务器
 - **移动端适配**：展开面板在手机上以居中浮层形式展示（带半透明遮罩，点击外部收起），不会溢出屏幕；桌面端保持右上角下拉样式
 
 > **Docker 部署的容器内更新机制**
-> Dockerfile 在构建阶段会 `git clone` 完整仓库（含 `.git` 目录）到镜像内，并在运行时镜像安装 git。因此容器内能直接执行 `git fetch` / `git reset --hard origin/main` 完成自更新，**点击"立即更新并重启"即可生效**，无需重新构建镜像。`node_modules` 与 `dist` 在 `.gitignore` 中，`git reset` 不会删除它们；更新后 `performUpdate` 会重新 `npm install` 安装依赖变更，最后进程退出触发 Docker `restart: unless-stopped` 自动重启。
+> Dockerfile 在构建阶段会 `git clone` 完整仓库（含 `.git` 目录）到镜像内，并在运行时镜像安装 git。因此容器内能直接执行 `git fetch` / `git reset --hard origin/main` 完成自更新，**点击"立即更新并重启"即可生效**，无需重新构建镜像。`node_modules` 与 `dist` 在 `.gitignore` 中，`git reset` 不会删除它们；更新流程会重新 `npm install`（含前端构建工具链）并 `npm run build` 重建前端 `dist`，确保 UI 改动也随之生效，最后进程退出触发 Docker `restart: unless-stopped` 自动重启。
 
 也可通过 API 手动触发：
 ```bash
