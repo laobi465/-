@@ -52,12 +52,13 @@ export const config = {
 
   dataFile: process.env.DATA_FILE || 'server/data/proxies.json',
 
-  // Self-update: check GitHub for new commits every 10 seconds, so the version
+  // Self-update: check GitHub for new commits every 60 seconds, so the version
   // badge stays current without needing a page refresh. The dashboard also
   // triggers an on-demand check (POST /api/version/check) on mount.
+  // 60s keeps us well under the GitHub anonymous API limit (60 req/hour).
   update: {
     repo: 'laobi465/-',
     branch: 'main',
-    checkIntervalMs: 10 * 1000,
+    checkIntervalMs: 60 * 1000,
   },
 } as const;

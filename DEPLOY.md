@@ -243,7 +243,7 @@ curl http://你的服务器IP:7999/api/tunnel
 
 监控页面右上角显示当前版本号，右侧箭头可展开查看更新状态：
 - **页面刷新即自动检查**：每次打开或刷新监控页时，前端会自动调用 `/api/version/check` 向 GitHub 拉取最新提交状态，版本徽标立即反映是否有更新
-- **定时巡检**：后端每 **10 秒**自动检查 GitHub 仓库是否有新 commit，即便不刷新页面也能实时发现更新并更新徽标
+- **定时巡检**：后端每 **1 分钟**自动检查 GitHub 仓库是否有新 commit，即便不刷新页面也能发现更新并更新徽标
 - 检测到更新时，展开面板会显示"立即更新并重启"按钮
 - 点击后后端会执行 `git fetch origin && git reset --hard origin/main` → 重装依赖 → 重启进程，无需 SSH 登录服务器
 - **移动端适配**：展开面板在手机上以居中浮层形式展示（带半透明遮罩，点击外部收起），不会溢出屏幕；桌面端保持右上角下拉样式
@@ -263,7 +263,7 @@ curl -X POST http://你的服务器IP:7999/api/version/check
 curl -X POST http://你的服务器IP:7999/api/update
 ```
 
-> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。定时巡检每 10 秒请求一次 GitHub API，匿名接口限流为每小时 60 次——**默认 10 秒间隔会在约 10 分钟内耗尽配额**，限流期间 `remoteCommit` 返回 null，徽标会显示"已是最新版本"（实为检测失败）；如需降低频率，修改 `server/src/config.ts` 的 `update.checkIntervalMs` 后重新构建。
+> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。定时巡检每 1 分钟请求一次 GitHub API，匿名接口限流为每小时 60 次——默认 1 分钟间隔每小时仅 60 次，刚好不超限；如需调整频率，修改 `server/src/config.ts` 的 `update.checkIntervalMs` 后重新构建。
 
 ---
 
