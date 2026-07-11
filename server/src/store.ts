@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config';
+import { get as getCredentials } from './credentials';
 import type { ProxyFilter, Stats, StoredProxy, TunnelInfo } from './types';
 
 interface StoreMeta {
@@ -143,7 +144,8 @@ class ProxyStore extends EventEmitter {
       config.tunnel.publicHost ||
       realIp ||
       (config.tunnel.host !== '0.0.0.0' ? config.tunnel.host : '127.0.0.1');
-    const { username, password } = config.tunnel;
+    // Credentials are read dynamically so dashboard changes reflect immediately.
+    const { username, password } = getCredentials();
     // Display/copy format: user:pass@host:port — usable as
     // http://user:pass@host:port in browsers / curl -x.
     const address = `${username}:${password}@${host}:${config.tunnel.port}`;

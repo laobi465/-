@@ -27,6 +27,35 @@ export function testTunnel() {
   );
 }
 
+export interface TunnelCredentials {
+  username: string;
+}
+
+/** Fetch the current tunnel username (password is never exposed). */
+export function getCredentials() {
+  return getJson<TunnelCredentials>(`${base}/api/tunnel/credentials`);
+}
+
+/**
+ * Update the tunnel Basic-auth credentials at runtime. Both fields required.
+ * Returns the new username on success, throws with a server message on error.
+ */
+export async function updateCredentials(
+  username: string,
+  password: string,
+): Promise<TunnelCredentials> {
+  const res = await fetch(`${base}/api/tunnel/credentials`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export function getVersionInfo() {
   return getJson<VersionInfo>(`${base}/api/version`);
 }

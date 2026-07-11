@@ -66,6 +66,15 @@ curl -x http://proxy:proxy@你的服务器IP:8080 https://httpbin.org/ip
 >
 > 如果页面 host 部分仍为 `127.0.0.1`，通常是因为后端检测公网 IP 失败（服务器无法访问 ip-api.com），此时请显式设置 `TUNNEL_PUBLIC_HOST` 为你的服务器公网 IP 或域名。
 
+> **自定义代理账号（运行时修改）**
+> 隧道代理的账号密码无需重启即可修改。监控页面"隧道代理地址"卡片下方有 **修改代理账号** 按钮，点击后输入新的用户名和密码并保存：
+> - **立即生效**：保存后所有新请求需使用新账号，旧账号立即失效
+> - **持久化保存**：凭证写入 `server/data/credentials.json`，容器重启 / 重建后仍然保留（不会被 `TUNNEL_USERNAME`/`TUNNEL_PASSWORD` 环境变量覆盖）
+> - **安全说明**：API 出于安全考虑永远不会返回密码；修改时密码必须重新输入
+> - 也可通过 API 修改：`PUT /api/tunnel/credentials`（见下方 [REST API](#32-rest-api)）
+>
+> 环境变量 `TUNNEL_USERNAME` / `TUNNEL_PASSWORD` 仅作为**首次启动的初始默认值**。一旦通过页面或 API 修改过账号，则以持久化文件为准。
+
 ### 3.2 REST API
 
 | 接口 | 方法 | 说明 |
@@ -75,6 +84,8 @@ curl -x http://proxy:proxy@你的服务器IP:8080 https://httpbin.org/ip
 | `/api/proxies` | GET | 代理列表，支持 `?protocol=http&pure=true&country=US&limit=100` |
 | `/api/tunnel` | GET | 隧道代理信息（含对外访问地址、公网 IP、代理池大小） |
 | `/api/tunnel/test` | POST | 测试隧道代理：通过它访问 httpbin.org/ip，返回出口 IP、延迟、是否成功 |
+| `/api/tunnel/credentials` | GET | 查询当前隧道账号用户名（出于安全不返回密码） |
+| `/api/tunnel/credentials` | PUT | 修改隧道代理账号密码（body: `{"username":"...","password":"..."}`），立即生效并持久化，重启后保留 |
 | `/api/refresh` | POST | 手动触发刷新 |
 | `/api/version` | GET | 当前版本号（git commit）与是否有可用更新（读取缓存） |
 | `/api/version/check` | POST | 强制向 GitHub 重新检查更新，返回最新版本信息并广播给所有监控页 |
@@ -87,6 +98,11 @@ curl http://你的服务器IP:7999/api/stats
 
 # 只看纯净代理（可访问 AI + YouTube）
 curl "http://你的服务器IP:7999/api/proxies?pure=true&limit=10"
+
+# 修改隧道代理账号密码（立即生效，重启后保留）
+curl -X PUT http://你的服务器IP:7999/api/tunnel/credentials \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"myuser","password":"mypass"}'
 ```
 
 ### 3.3 实时监控页面
@@ -110,8 +126,8 @@ curl "http://你的服务器IP:7999/api/proxies?pure=true&limit=10"
 | `API_PORT` | `7999` | API + WebSocket + 前端页面端口 |
 | `TUNNEL_HOST` | `0.0.0.0` | 隧道代理监听地址 |
 | `TUNNEL_PORT` | `8080` | 隧道代理端口 |
-| `TUNNEL_USERNAME` | `proxy` | 隧道代理 Basic 认证用户名（客户端必须在代理 URL 中携带） |
-| `TUNNEL_PASSWORD` | `proxy` | 隧道代理 Basic 认证密码，**生产环境务必修改为强密码** |
+| `TUNNEL_USERNAME` | `proxy` | 隧道代理 Basic 认证用户名（**首次启动初始值**，之后可通过页面/API 运行时修改并持久化） |
+| `TUNNEL_PASSWORD` | `proxy` | 隧道代理 Basic 认证密码（**首次启动初始值**，**生产环境务必修改为强密码**，之后可通过页面/API 运行时修改并持久化） |
 | `TUNNEL_PUBLIC_HOST` | （空） | 对外公布的隧道代理地址（域名或公网 IP）。留空时后端自动检测公网 IP；若自动检测失败或使用 NAT/域名，请显式设置此项 |
 | `DATA_FILE` | `/app/server/data/proxies.json` | 代理持久化文件路径 |
 | `HTTP_PROXY` | （空） | 受限网络下的 egress 网关，见第七节 |
@@ -265,6 +281,26 @@ curl -X POST http://你的服务器IP:7999/api/update
 
 > 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。定时巡检每 1 分钟请求一次 GitHub API，匿名接口限流为每小时 60 次——默认 1 分钟间隔每小时仅 60 次，刚好不超限；如需调整频率，修改 `server/src/config.ts` 的 `update.checkIntervalMs` 后重新构建。
 
+### Q8：如何修改隧道代理的账号密码？
+
+无需重启，两种方式任选：
+
+1. **页面修改（推荐）**：监控页面"隧道代理地址"卡片下方点击 **修改代理账号** → 输入新用户名和密码 → 保存并生效。保存后立即生效，所有打开的监控页会通过 WebSocket 自动刷新显示的地址。
+
+2. **API 修改**：
+   ```bash
+   curl -X PUT http://你的服务器IP:7999/api/tunnel/credentials \
+     -H 'Content-Type: application/json' \
+     -d '{"username":"newuser","password":"newpass"}'
+   ```
+
+修改后的凭证持久化到 `server/data/credentials.json`（与代理数据共用 volume），容器重启 / 重建后保留。环境变量 `TUNNEL_USERNAME`/`TUNNEL_PASSWORD` 仅在**首次启动且无持久化文件**时作为初始值；一旦修改过则以文件为准。
+
+> 查看当前用户名（不含密码）：
+> ```bash
+> curl http://你的服务器IP:7999/api/tunnel/credentials
+> ```
+
 ---
 
 ## 九、架构说明
@@ -311,6 +347,7 @@ curl -X POST http://你的服务器IP:7999/api/update
 │   │   ├── store.ts        # 存储 + TTL + 持久化
 │   │   ├── scheduler.ts    # 5min 刷新 + 过期清理
 │   │   ├── tunnel.ts       # 轮换隧道代理服务器
+│   │   ├── credentials.ts  # 隧道账号密码（运行时可变，持久化到 credentials.json）
 │   │   ├── api.ts          # REST API + WebSocket
 │   │   └── types.ts
 │   └── package.json

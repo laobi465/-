@@ -3,25 +3,24 @@ import net from 'node:net';
 import { SocksClient } from 'socks';
 import { config } from './config';
 import { store } from './store';
+import { getExpectedB64 } from './credentials';
 import type { StoredProxy } from './types';
 
 const log = (...a: unknown[]) => console.log('[tunnel]', ...a);
-
-/** The expected Basic credential string (base64 of "user:pass"). */
-const EXPECTED_B64 = Buffer.from(
-  `${config.tunnel.username}:${config.tunnel.password}`,
-).toString('base64');
 
 /**
  * Validate the Proxy-Authorization header on an incoming request.
  * Returns true if the request may proceed; sends a 407 challenge otherwise.
  * Works for both plain HTTP forwards and CONNECT (caller handles the socket).
+ *
+ * Credentials are read dynamically so runtime changes (via the dashboard)
+ * take effect immediately without restarting the tunnel.
  */
 function checkAuth(req: http.IncomingMessage): boolean {
   const header = req.headers['proxy-authorization'] || '';
   if (!header) return false;
   const m = /^Basic\s+(.+)$/i.exec(header.trim());
-  return !!m && m[1] === EXPECTED_B64;
+  return !!m && m[1] === getExpectedB64();
 }
 
 /** Send a 407 Proxy Authentication Required challenge to a plain HTTP client. */

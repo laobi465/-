@@ -8,6 +8,7 @@ import { store } from './store';
 import * as scheduler from './scheduler';
 import { getRealIp } from './validator';
 import { getVersionInfo, performUpdate, checkForUpdate } from './updater';
+import { get as getCredentials, set as setCredentials } from './credentials';
 
 const log = (...a: unknown[]) => console.log('[api]', ...a);
 
@@ -15,9 +16,33 @@ function sendJson(res: http.ServerResponse, data: unknown, status = 200) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
   });
   res.end(JSON.stringify(data));
+}
+
+/** Read and parse a JSON object body from an incoming request. */
+function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let raw = '';
+    req.on('data', (c: Buffer) => {
+      raw += c.toString();
+      // Guard against unbounded payloads.
+      if (raw.length > 64 * 1024) {
+        reject(new Error('payload too large'));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (!raw) return resolve({});
+      try {
+        resolve(JSON.parse(raw));
+      } catch {
+        reject(new Error('invalid JSON body'));
+      }
+    });
+    req.on('error', reject);
+  });
 }
 
 function parseQuery(rawUrl: string): Record<string, string> {
@@ -88,7 +113,9 @@ async function testTunnel(): Promise<{
 }> {
   const start = Date.now();
   // Build the proxy URL pointing at our own tunnel with Basic auth.
-  const proxyUrl = `http://${config.tunnel.username}:${config.tunnel.password}@127.0.0.1:${config.tunnel.port}`;
+  // Credentials are read dynamically so the test reflects runtime changes.
+  const { username, password } = getCredentials();
+  const proxyUrl = `http://${username}:${password}@127.0.0.1:${config.tunnel.port}`;
   try {
     // fetch() supports the proxy via a dispatcher only in undici; here we do
     // a raw HTTP request through the proxy manually for portability.
@@ -153,7 +180,8 @@ export function startApi() {
     if (req.method === 'OPTIONS') {
       res.writeHead(204, {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
       });
       res.end();
       return;
@@ -171,6 +199,28 @@ export function startApi() {
       if (pathname === '/api/tunnel/test' && req.method === 'POST') {
         const result = await testTunnel();
         return sendJson(res, result, result.ok ? 200 : 502);
+      }
+
+      // Read current tunnel credentials (username only — never expose the
+      // password over the API).
+      if (pathname === '/api/tunnel/credentials' && req.method === 'GET') {
+        const { username } = getCredentials();
+        return sendJson(res, { username });
+      }
+
+      // Update tunnel credentials at runtime. Persists to disk so the change
+      // survives restarts; takes effect immediately for new tunnel requests.
+      if (pathname === '/api/tunnel/credentials' && req.method === 'PUT') {
+        const body = (await readJsonBody(req)) as { username?: string; password?: string };
+        try {
+          setCredentials(body.username ?? '', body.password ?? '');
+        } catch (e) {
+          return sendJson(res, { error: (e as Error).message }, 400);
+        }
+        // Broadcast a fresh snapshot so every dashboard sees the new address.
+        broadcast();
+        const { username } = getCredentials();
+        return sendJson(res, { username, updated: true });
       }
 
       if (pathname === '/api/proxies') {
