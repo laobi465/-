@@ -134,8 +134,15 @@ class ProxyStore extends EventEmitter {
   }
 
   getTunnelInfo(realIp: string | null): TunnelInfo {
+    // Advertise the address clients should actually use to reach the tunnel:
+    //   1. explicitly configured TUNNEL_PUBLIC_HOST (domain / public IP)
+    //   2. auto-detected server public IP (realIp)
+    //   3. configured bind host when it is not 0.0.0.0
+    //   4. 127.0.0.1 (local development fallback)
     const host =
-      config.tunnel.host === '0.0.0.0' ? '127.0.0.1' : config.tunnel.host;
+      config.tunnel.publicHost ||
+      realIp ||
+      (config.tunnel.host !== '0.0.0.0' ? config.tunnel.host : '127.0.0.1');
     return {
       host,
       port: config.tunnel.port,

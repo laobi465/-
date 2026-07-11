@@ -56,6 +56,15 @@ curl -x http://你的服务器IP:8080 https://httpbin.org/ip
 
 支持 HTTP 转发与 HTTPS CONNECT 隧道，覆盖 http / https / socks4 / socks5 上游协议。
 
+> **关于监控页面显示的隧道地址**
+> 监控页面"隧道代理地址"栏显示的是客户端实际应访问的地址，按以下优先级解析：
+> 1. 环境变量 `TUNNEL_PUBLIC_HOST`（显式指定的域名或公网 IP，优先级最高，适合 NAT / 域名场景）
+> 2. 后端自动检测的服务器公网 IP（通过 ip-api.com 查询，绝大多数 VPS 自动生效）
+> 3. `TUNNEL_HOST`（仅当它不是 `0.0.0.0` 时，即绑定了具体网卡 IP）
+> 4. `127.0.0.1`（本地开发回退，仅当以上都不可用时）
+>
+> 如果页面仍显示 `127.0.0.1:8080`，通常是因为后端检测公网 IP 失败（服务器无法访问 ip-api.com），此时请显式设置 `TUNNEL_PUBLIC_HOST` 为你的服务器公网 IP 或域名。
+
 ### 3.2 REST API
 
 | 接口 | 方法 | 说明 |
@@ -63,8 +72,10 @@ curl -x http://你的服务器IP:8080 https://httpbin.org/ip
 | `/api/health` | GET | 健康检查 |
 | `/api/stats` | GET | 代理池统计（总数、纯净、AI/YT 可访问数、国家分布） |
 | `/api/proxies` | GET | 代理列表，支持 `?protocol=http&pure=true&country=US&limit=100` |
-| `/api/tunnel` | GET | 隧道代理信息 |
+| `/api/tunnel` | GET | 隧道代理信息（含对外访问地址、公网 IP、代理池大小） |
 | `/api/refresh` | POST | 手动触发刷新 |
+| `/api/version` | GET | 当前版本号（git commit）与是否有可用更新 |
+| `/api/update` | POST | 拉取 GitHub 最新代码、重新构建并重启服务 |
 
 示例：
 ```bash
@@ -96,9 +107,12 @@ curl "http://你的服务器IP:7999/api/proxies?pure=true&limit=10"
 | `API_PORT` | `7999` | API + WebSocket + 前端页面端口 |
 | `TUNNEL_HOST` | `0.0.0.0` | 隧道代理监听地址 |
 | `TUNNEL_PORT` | `8080` | 隧道代理端口 |
+| `TUNNEL_PUBLIC_HOST` | （空） | 对外公布的隧道代理地址（域名或公网 IP）。留空时后端自动检测公网 IP；若自动检测失败或使用 NAT/域名，请显式设置此项 |
 | `DATA_FILE` | `/app/server/data/proxies.json` | 代理持久化文件路径 |
 | `HTTP_PROXY` | （空） | 受限网络下的 egress 网关，见第七节 |
 | `HTTPS_PROXY` | （空） | 同上 |
+
+> **隧道地址优先级**：`TUNNEL_PUBLIC_HOST` > 自动检测的公网 IP > `TUNNEL_HOST`（非 `0.0.0.0` 时）> `127.0.0.1`。详见 [3.1 节](#31-轮换隧道代理)。
 
 ---
 
@@ -200,6 +214,43 @@ ports:
 ### Q5：数据会丢失吗？
 
 不会。代理数据持久化在 Docker volume `proxy-data` 中，容器重启/重建都不丢失。执行 `docker compose down -v` 才会删除数据。
+
+### Q6：监控页面显示的隧道地址还是 `127.0.0.1:8080`？
+
+监控页面显示的地址是客户端应访问的对外地址，按优先级解析（详见 [3.1 节](#31-轮换隧道代理)）。显示 `127.0.0.1` 通常有两种原因：
+
+1. **后端无法访问 ip-api.com**：自动检测公网 IP 失败（部分云厂商限制出站）。解决方法：在 `docker-compose.yml` 显式设置：
+   ```yaml
+   environment:
+     TUNNEL_PUBLIC_HOST: "你的服务器公网IP或域名"
+   ```
+   然后 `docker compose up -d --build` 重启。
+
+2. **容器未重启加载新代码**：若是从旧版本升级，确认已 `git pull` 并 `docker compose up -d --build` 重新构建镜像。
+
+验证当前生效地址：
+```bash
+curl http://你的服务器IP:7999/api/tunnel
+# 关注返回 JSON 的 host / address 字段
+```
+
+### Q7：如何使用自动更新功能？
+
+监控页面右上角显示当前版本号，右侧箭头可展开查看更新状态：
+- 后端每 1 分钟自动检查 GitHub 仓库是否有新 commit
+- 检测到更新时，展开面板会显示"立即更新并重启"按钮
+- 点击后后端会执行 `git pull` → 重新构建 → 重启进程，无需 SSH 登录服务器
+
+也可通过 API 手动触发：
+```bash
+# 查看版本与更新状态
+curl http://你的服务器IP:7999/api/version
+
+# 触发更新并重启
+curl -X POST http://你的服务器IP:7999/api/update
+```
+
+> 注意：自动更新依赖容器内的 git 仓库可正常 `pull`（公网仓库无需鉴权）。若修改了远程地址或使用了私有仓库，需确保容器内配置了访问凭证。
 
 ---
 

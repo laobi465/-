@@ -21,6 +21,11 @@ services:
       TUNNEL_HOST: 0.0.0.0
       TUNNEL_PORT: 8080
       DATA_FILE: /app/server/data/proxies.json
+      # ===== 可选：对外公布的隧道代理地址（域名 / 公网 IP）=====
+      # 留空时后端会自动检测服务器公网 IP 并显示在监控页面。
+      # 若服务器在 NAT 后面、或想用域名对外服务，请在此指定，
+      # 例如: TUNNEL_PUBLIC_HOST: proxy.example.com
+      # TUNNEL_PUBLIC_HOST: ""
       # ===== 可选：受限网络下经 egress 网关访问外网 =====
       # 如果服务器本身禁止直连出站，可配置 HTTP 代理网关。
       # 留空则直连（绝大多数 VPS 不需要填）。

@@ -40,6 +40,10 @@ export const config = {
   tunnel: {
     host: process.env.TUNNEL_HOST || '0.0.0.0',
     port: Number(process.env.TUNNEL_PORT) || 8080,
+    // Public address advertised to clients (domain or public IP).
+    // When empty, the server falls back to its auto-detected public IP,
+    // then to 127.0.0.1 for local development.
+    publicHost: process.env.TUNNEL_PUBLIC_HOST || '',
   },
 
   dataFile: process.env.DATA_FILE || 'server/data/proxies.json',

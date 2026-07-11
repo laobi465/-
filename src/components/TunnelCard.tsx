@@ -23,6 +23,7 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
   }, []);
 
   const address = info?.address ?? '127.0.0.1:8080';
+  const isLocal = !info || address.startsWith('127.');
 
   const copy = async () => {
     try {
@@ -61,6 +62,12 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
           )}
         </button>
       </div>
+
+      {isLocal && (
+        <p className="mt-1.5 text-[11px] text-amber-400/80">
+          当前为本地地址。部署到服务器后，将自动显示服务器公网 IP；也可用环境变量 TUNNEL_PUBLIC_HOST 指定域名。
+        </p>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <Meta label="协议" value={info?.protocols.join(' / ') ?? 'http · https'} />
