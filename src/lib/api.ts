@@ -12,6 +12,21 @@ export function getTunnelInfo() {
   return getJson<TunnelInfo>(`${base}/api/tunnel`);
 }
 
+export interface TunnelTestResult {
+  ok: boolean;
+  exitIp?: string;
+  latencyMs: number;
+  status?: number;
+  error?: string;
+}
+
+/** Test the tunnel proxy end-to-end via the backend. */
+export function testTunnel() {
+  return fetch(`${base}/api/tunnel/test`, { method: 'POST' }).then((res) =>
+    res.json() as Promise<TunnelTestResult>,
+  );
+}
+
 export function getVersionInfo() {
   return getJson<VersionInfo>(`${base}/api/version`);
 }

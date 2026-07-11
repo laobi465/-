@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Network, Copy, Check, Shuffle, Globe } from 'lucide-react';
+import { Network, Copy, Check, Shuffle, Globe, Zap, Loader2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getTunnelInfo } from '@/lib/api';
+import { getTunnelInfo, testTunnel, type TunnelTestResult } from '@/lib/api';
 import type { TunnelInfo } from '@/types';
 
 export function TunnelCard({ poolSize }: { poolSize: number }) {
   const [info, setInfo] = useState<TunnelInfo | null>(null);
   const [copied, setCopied] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TunnelTestResult | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -38,6 +40,19 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
     }
   };
 
+  const onTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const r = await testTunnel();
+      setTestResult(r);
+    } catch (e) {
+      setTestResult({ ok: false, latencyMs: 0, error: (e as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
   return (
     <div className="relative overflow-hidden rounded-xl border border-emerald-500/30 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 p-5">
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -50,12 +65,12 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
       </div>
 
       <div className="mt-3 flex items-center gap-2">
-        <code className="flex-1 truncate rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-3 text-lg font-semibold tracking-wide text-emerald-300">
+        <code className="min-w-0 flex-1 truncate rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-3 text-lg font-semibold tracking-wide text-emerald-300">
           {address}
         </code>
         <button
           onClick={copy}
-          className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/60 text-slate-300 transition hover:bg-slate-800"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800/60 text-slate-300 transition hover:bg-slate-800"
           title={`复制 ${copyValue}`}
         >
           {copied ? (
@@ -63,6 +78,24 @@ export function TunnelCard({ poolSize }: { poolSize: number }) {
           ) : (
             <Copy className="h-4 w-4" />
           )}
+        </button>
+        <button
+          onClick={onTest}
+          disabled={testing}
+          className={cn(
+            'flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition',
+            testing
+              ? 'cursor-wait border-slate-700 bg-slate-800/60 text-slate-400'
+              : 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20',
+          )}
+          title="测试隧道代理（通过它访问 httpbin.org/ip 验证链路）"
+        >
+          {testing ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Zap className="h-4 w-4" />
+          )}
+          <span className="hidden sm:inline">{testing ? '测试中…' : '测试连接'}</span>
         </button>
       </div>
 
@@ -98,6 +131,42 @@ curl -x ${copyValue} https://httpbin.org/ip
 # 每次请求自动切换不同的上游纯净 IP`}
         </pre>
       </div>
+
+      {testResult && (
+        <div
+          className={cn(
+            'mt-3 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs',
+            testResult.ok
+              ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+              : 'border-rose-500/40 bg-rose-500/10 text-rose-200',
+          )}
+        >
+          {testResult.ok ? (
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+          ) : (
+            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+          )}
+          <div className="min-w-0 flex-1 break-words">
+            {testResult.ok ? (
+              <span>
+                连接成功 · 出口 IP <span className="font-mono text-emerald-300">{testResult.exitIp ?? '未知'}</span> · 耗时 {testResult.latencyMs}ms
+              </span>
+            ) : (
+              <span>
+                连接失败 · {testResult.error || `HTTP ${testResult.status ?? '?'}`}
+                {testResult.latencyMs > 0 && ` · 耗时 ${testResult.latencyMs}ms`}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setTestResult(null)}
+            className="shrink-0 text-current/60 transition hover:text-current"
+            title="关闭"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

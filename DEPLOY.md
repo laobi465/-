@@ -74,6 +74,7 @@ curl -x http://proxy:proxy@你的服务器IP:8080 https://httpbin.org/ip
 | `/api/stats` | GET | 代理池统计（总数、纯净、AI/YT 可访问数、国家分布） |
 | `/api/proxies` | GET | 代理列表，支持 `?protocol=http&pure=true&country=US&limit=100` |
 | `/api/tunnel` | GET | 隧道代理信息（含对外访问地址、公网 IP、代理池大小） |
+| `/api/tunnel/test` | POST | 测试隧道代理：通过它访问 httpbin.org/ip，返回出口 IP、延迟、是否成功 |
 | `/api/refresh` | POST | 手动触发刷新 |
 | `/api/version` | GET | 当前版本号（git commit）与是否有可用更新（读取缓存） |
 | `/api/version/check` | POST | 强制向 GitHub 重新检查更新，返回最新版本信息并广播给所有监控页 |

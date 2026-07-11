@@ -74,6 +74,75 @@ function serveStatic(res: http.ServerResponse, urlPath: string) {
   });
 }
 
+/**
+ * Test the tunnel proxy end-to-end: connect through the local tunnel (with
+ * Basic auth) to httpbin.org/ip and report exit IP / latency / status.
+ * This verifies the full chain: auth → rotating upstream → external reach.
+ */
+async function testTunnel(): Promise<{
+  ok: boolean;
+  exitIp?: string;
+  latencyMs: number;
+  status?: number;
+  error?: string;
+}> {
+  const start = Date.now();
+  // Build the proxy URL pointing at our own tunnel with Basic auth.
+  const proxyUrl = `http://${config.tunnel.username}:${config.tunnel.password}@127.0.0.1:${config.tunnel.port}`;
+  try {
+    // fetch() supports the proxy via a dispatcher only in undici; here we do
+    // a raw HTTP request through the proxy manually for portability.
+    const u = new URL(proxyUrl);
+    const proxyHost = u.hostname;
+    const proxyPort = Number(u.port);
+    const auth = Buffer.from(`${u.username}:${u.password}`).toString('base64');
+
+    const targetUrl = 'http://httpbin.org/ip';
+    const target = new URL(targetUrl);
+
+    const result = await new Promise<{ status: number; body: string }>(
+      (resolve, reject) => {
+        const req = http.request(
+          {
+            host: proxyHost,
+            port: proxyPort,
+            method: 'GET',
+            path: targetUrl,
+            headers: {
+              Host: target.host,
+              'Proxy-Authorization': `Basic ${auth}`,
+            },
+            timeout: 15000,
+          },
+          (upRes) => {
+            let body = '';
+            upRes.on('data', (c: Buffer) => (body += c.toString()));
+            upRes.on('end', () => resolve({ status: upRes.statusCode || 0, body }));
+          },
+        );
+        req.on('error', reject);
+        req.on('timeout', () => req.destroy(new Error('proxy test timeout')));
+        req.end();
+      },
+    );
+
+    const latencyMs = Date.now() - start;
+    if (result.status !== 200) {
+      return { ok: false, latencyMs, status: result.status, error: `HTTP ${result.status}` };
+    }
+    // httpbin.org/ip returns { "origin": "1.2.3.4" }
+    let exitIp: string | undefined;
+    try {
+      exitIp = (JSON.parse(result.body) as { origin?: string }).origin;
+    } catch {
+      // keep undefined
+    }
+    return { ok: true, exitIp, latencyMs, status: result.status };
+  } catch (e) {
+    return { ok: false, latencyMs: Date.now() - start, error: (e as Error).message };
+  }
+}
+
 /** Start the HTTP API + WebSocket server. */
 export function startApi() {
   const server = http.createServer(async (req, res) => {
@@ -98,6 +167,11 @@ export function startApi() {
 
       if (pathname === '/api/tunnel')
         return sendJson(res, store.getTunnelInfo(getRealIp()));
+
+      if (pathname === '/api/tunnel/test' && req.method === 'POST') {
+        const result = await testTunnel();
+        return sendJson(res, result, result.ok ? 200 : 502);
+      }
 
       if (pathname === '/api/proxies') {
         const list = store.getAll({
