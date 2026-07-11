@@ -48,11 +48,12 @@ export const config = {
 
   dataFile: process.env.DATA_FILE || 'server/data/proxies.json',
 
-  // Self-update: GitHub repo/branch for update detection. Update checks are
-  // NOT scheduled — they happen on demand when the dashboard is opened /
-  // refreshed (POST /api/version/check), plus when an update is triggered.
+  // Self-update: check GitHub for new commits every 10 seconds, so the version
+  // badge stays current without needing a page refresh. The dashboard also
+  // triggers an on-demand check (POST /api/version/check) on mount.
   update: {
     repo: 'laobi465/-',
     branch: 'main',
+    checkIntervalMs: 10 * 1000,
   },
 } as const;
