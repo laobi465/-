@@ -15,19 +15,43 @@ const PROTO_STYLE: Record<Protocol, string> = {
  * 每个地址带独立复制按钮，复制值为带协议格式的 `protocol://ip:port`，
  * 可直接用于 curl / 浏览器 / 爬虫。另提供"一键复制全部"按钮，复制当前
  * 代理池中所有纯净 IP（每行一个，带协议格式）。
+ *
+ * 顶部国家选择器可按国家筛选纯净 IP（含"全部"选项），列表展示与"一键复制
+ * 全部"均遵循当前选中国家。
  */
 export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [country, setCountry] = useState<string>('');
 
-  // 全部纯净 IP，按延迟升序。用于"一键复制全部"。
+  // 全部纯净 IP，按延迟升序。用于国家选项与"一键复制全部"。
   const allPure = useMemo(
     () => [...proxies].filter((p) => p.pure).sort((a, b) => a.latency - b.latency),
     [proxies],
   );
 
-  // 纯净 IP = pure === true；按延迟升序取前 5 个用于列表展示。
-  const top = allPure.slice(0, 5);
+  // 可选国家列表（来自当前纯净 IP，按数量降序）。
+  const countries = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of allPure) {
+      const cc = (p.countryCode || '').toUpperCase();
+      if (!cc) continue;
+      map.set(cc, (map.get(cc) || 0) + 1);
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [allPure]);
+
+  // 按选中国家过滤后的纯净 IP。
+  const filtered = useMemo(
+    () =>
+      country
+        ? allPure.filter((p) => (p.countryCode || '').toUpperCase() === country)
+        : allPure,
+    [allPure, country],
+  );
+
+  // 列表展示前 5 个（遵循国家筛选）。
+  const top = filtered.slice(0, 5);
 
   const copy = async (p: StoredProxy, idx: number) => {
     const value = `${p.protocol}://${p.ip}:${p.port}`;
@@ -40,10 +64,10 @@ export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
     }
   };
 
-  // 复制全部纯净 IP，每行一个，格式 protocol://ip:port。
+  // 复制（过滤后的）全部纯净 IP，每行一个，格式 protocol://ip:port。
   const copyAll = async () => {
-    if (allPure.length === 0) return;
-    const text = allPure.map((p) => `${p.protocol}://${p.ip}:${p.port}`).join('\n');
+    if (filtered.length === 0) return;
+    const text = filtered.map((p) => `${p.protocol}://${p.ip}:${p.port}`).join('\n');
     try {
       await navigator.clipboard.writeText(text);
       setCopiedAll(true);
@@ -64,9 +88,46 @@ export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
         </span>
       </div>
 
+      {/* 国家选择器 */}
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-slate-500">国家：</span>
+        <button
+          onClick={() => setCountry('')}
+          className={cn(
+            'rounded-md border px-2 py-1 text-[11px] font-medium transition',
+            country === ''
+              ? 'border-cyan-500/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/30'
+              : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:bg-slate-800',
+          )}
+        >
+          全部（{allPure.length}）
+        </button>
+        {countries.map(([cc, count]) => (
+          <button
+            key={cc}
+            onClick={() => setCountry(cc)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition',
+              country === cc
+                ? 'border-cyan-500/60 bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/30'
+                : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:bg-slate-800',
+            )}
+          >
+            <span>{countryFlag(cc)}</span>
+            <span>{cc}</span>
+            <span className="tabular-nums text-slate-500">{count}</span>
+          </button>
+        ))}
+        {countries.length === 0 && (
+          <span className="text-[11px] text-slate-600">暂无国家数据</span>
+        )}
+      </div>
+
       {top.length === 0 ? (
         <p className="mt-4 text-xs text-slate-500">
-          暂无纯净 IP，代理池校验完成后将在此展示前 5 个最优地址。
+          {country
+            ? `所选国家暂无纯净 IP，可切换为"全部"查看其它国家。`
+            : '暂无纯净 IP，代理池校验完成后将在此展示前 5 个最优地址。'}
         </p>
       ) : (
         <>
@@ -116,28 +177,30 @@ export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
           <div className="mt-3 flex items-center gap-2">
             <button
               onClick={copyAll}
-              disabled={allPure.length === 0}
+              disabled={filtered.length === 0}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition',
-                allPure.length === 0
+                filtered.length === 0
                   ? 'cursor-not-allowed border-slate-700 bg-slate-800/40 text-slate-500'
                   : copiedAll
                     ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
                     : 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25',
               )}
-              title={`一键复制全部 ${allPure.length} 个纯净 IP（每行一个，带协议格式）`}
+              title={`一键复制当前筛选下全部 ${filtered.length} 个纯净 IP（每行一个，带协议格式）`}
             >
               {copiedAll ? (
                 <Check className="h-3.5 w-3.5" />
               ) : (
                 <ClipboardList className="h-3.5 w-3.5" />
               )}
-              {copiedAll ? '已复制' : `一键复制全部（${allPure.length} 个）`}
+              {copiedAll
+                ? '已复制'
+                : `一键复制全部（${filtered.length} 个${country ? ` · ${country}` : ''}）`}
             </button>
           </div>
 
           <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-            上方列出延迟最低的 5 个；"一键复制全部"会复制当前代理池中所有纯净 IP，
+            上方列出延迟最低的 5 个；"一键复制全部"会复制当前筛选下所有纯净 IP，
             每行一个、带协议格式（如{' '}
             <span className="font-mono text-slate-400">socks5://1.2.3.4:1080</span>
             ），可直接用于 curl / 浏览器 / 爬虫。
