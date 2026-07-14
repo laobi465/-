@@ -1,6 +1,6 @@
 # Docker 部署教程
 
-自动代理池服务 —— 拉取 `proxifly/free-proxy-list` 代理，校验纯净 IP（可访问 AI 网站与 YouTube），每 5 分钟刷新，过期自动删除，提供轮换隧道代理与实时监控页面。
+自动代理池服务 —— 拉取 `proxifly/free-proxy-list` 代理，校验纯净 IP（可访问 AI 网站与 YouTube），每 5 分钟刷新，过期自动删除，监控页面顶部展示前 5 个纯净 IP 地址（带国家筛选与一键复制），同时提供轮换隧道代理与实时监控页面。
 
 ---
 
@@ -108,11 +108,26 @@ curl -X PUT http://你的服务器IP:7999/api/tunnel/credentials \
 ### 3.3 实时监控页面
 
 浏览器访问 `http://你的服务器IP:7999`，页面通过 WebSocket 实时更新：
-- 隧道代理地址（可一键复制）
+- **纯净 IP 地址卡片**：展示延迟最低的 5 个纯净 IP，每行带协议徽章（http/https/socks4/socks5）、`protocol://ip:port` 地址、国家旗帜、延迟和单独复制按钮（复制带协议格式地址）。卡片含国家选择器（"全部" + 各国家），可按国家筛选列表与一键复制。详见 [3.4 节](#34-纯净-ip-地址卡片)
 - 统计卡片：代理池总数 / 纯净 IP / 可访问 AI / 可访问 YouTube / 平均延迟
 - 代理明细表：IP、协议、国家、AI/YT 可访问性、出口 IP、ISP、延迟、过期倒计时
 - 国家分类网格（点击筛选）
 - 协议分布图
+
+### 3.4 纯净 IP 地址卡片
+
+页面顶部"纯净 IP 地址"卡片用于快速获取可用的纯净代理地址：
+
+- **前 5 个最优地址**：从代理池筛选 `pure`（可访问 AI + YouTube 且不泄漏真实 IP），按延迟升序取前 5 个，每行展示协议徽章、`protocol://ip:port`、国家旗帜、延迟
+- **单条复制**：每行右侧复制按钮，复制值为带协议格式地址（如 `socks5://1.2.3.4:1080`），可直接用于 curl / 浏览器 / 爬虫
+- **国家选择器**：卡片顶部按钮组，含"全部（N）"和各国家（旗帜 + 代码 + 数量）。选中后列表展示与"一键复制全部"均只覆盖该国家的纯净 IP
+- **一键复制全部**：复制当前筛选下所有纯净 IP，每行一个、带协议格式，例如：
+  ```
+  http://1.2.3.4:8080
+  socks5://5.6.7.8:1080
+  https://9.10.11.12:3128
+  ```
+  按钮文字显示当前筛选下的数量（如"一键复制全部（42 个 · US）"）
 
 ---
 
@@ -353,7 +368,7 @@ curl -X POST http://你的服务器IP:7999/api/update
 │   └── package.json
 ├── src/                    # 前端（React + Vite + Tailwind）
 │   ├── pages/Dashboard.tsx
-│   ├── components/         # Header/StatCard/TunnelCard/FilterBar/ProxyTable
+│   ├── components/         # Header/StatCard/PureProxyCard/FilterBar/ProxyTable/VersionBadge
 │   ├── hooks/useProxySocket.ts
 │   └── lib/api.ts
 └── ...
