@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ShieldCheck, Copy, Check, Globe, Zap } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ShieldCheck, Copy, Check, Globe, Zap, ClipboardList } from 'lucide-react';
 import { cn, countryFlag } from '@/lib/utils';
 import type { Protocol, StoredProxy } from '@/types';
 
@@ -13,16 +13,21 @@ const PROTO_STYLE: Record<Protocol, string> = {
 /**
  * 展示代理池中延迟最低的 5 个纯净 IP（可访问 AI + YouTube 且不泄漏真实 IP）。
  * 每个地址带独立复制按钮，复制值为带协议格式的 `protocol://ip:port`，
- * 可直接用于 curl / 浏览器 / 爬虫。
+ * 可直接用于 curl / 浏览器 / 爬虫。另提供"一键复制全部"按钮，复制当前
+ * 代理池中所有纯净 IP（每行一个，带协议格式）。
  */
 export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
 
-  // 纯净 IP = pure === true；按延迟升序取前 5 个。
-  const top = [...proxies]
-    .filter((p) => p.pure)
-    .sort((a, b) => a.latency - b.latency)
-    .slice(0, 5);
+  // 全部纯净 IP，按延迟升序。用于"一键复制全部"。
+  const allPure = useMemo(
+    () => [...proxies].filter((p) => p.pure).sort((a, b) => a.latency - b.latency),
+    [proxies],
+  );
+
+  // 纯净 IP = pure === true；按延迟升序取前 5 个用于列表展示。
+  const top = allPure.slice(0, 5);
 
   const copy = async (p: StoredProxy, idx: number) => {
     const value = `${p.protocol}://${p.ip}:${p.port}`;
@@ -30,6 +35,19 @@ export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
       await navigator.clipboard.writeText(value);
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx((cur) => (cur === idx ? null : cur)), 1500);
+    } catch {
+      // ignore
+    }
+  };
+
+  // 复制全部纯净 IP，每行一个，格式 protocol://ip:port。
+  const copyAll = async () => {
+    if (allPure.length === 0) return;
+    const text = allPure.map((p) => `${p.protocol}://${p.ip}:${p.port}`).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 1500);
     } catch {
       // ignore
     }
@@ -51,55 +69,81 @@ export function PureProxyCard({ proxies }: { proxies: StoredProxy[] }) {
           暂无纯净 IP，代理池校验完成后将在此展示前 5 个最优地址。
         </p>
       ) : (
-        <ul className="mt-3 space-y-2">
-          {top.map((p, idx) => {
-            const value = `${p.protocol}://${p.ip}:${p.port}`;
-            const copied = copiedIdx === idx;
-            return (
-              <li
-                key={p.id}
-                className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2.5"
-              >
-                <span
-                  className={cn(
-                    'shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase',
-                    PROTO_STYLE[p.protocol],
-                  )}
+        <>
+          <ul className="mt-3 space-y-2">
+            {top.map((p, idx) => {
+              const value = `${p.protocol}://${p.ip}:${p.port}`;
+              const copied = copiedIdx === idx;
+              return (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2.5"
                 >
-                  {p.protocol}
-                </span>
-                <code className="min-w-0 flex-1 truncate text-sm font-medium text-emerald-300">
-                  {value}
-                </code>
-                <span className="hidden shrink-0 items-center gap-1 text-[11px] text-slate-400 sm:inline-flex">
-                  <Globe className="h-3 w-3" />
-                  {countryFlag(p.countryCode)} {p.countryCode ?? '??'}
-                </span>
-                <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
-                  {p.latency}ms
-                </span>
-                <button
-                  onClick={() => copy(p, idx)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 transition hover:bg-slate-800"
-                  title={`复制 ${value}`}
-                >
-                  {copied ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+                      PROTO_STYLE[p.protocol],
+                    )}
+                  >
+                    {p.protocol}
+                  </span>
+                  <code className="min-w-0 flex-1 truncate text-sm font-medium text-emerald-300">
+                    {value}
+                  </code>
+                  <span className="hidden shrink-0 items-center gap-1 text-[11px] text-slate-400 sm:inline-flex">
+                    <Globe className="h-3 w-3" />
+                    {countryFlag(p.countryCode)} {p.countryCode ?? '??'}
+                  </span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
+                    {p.latency}ms
+                  </span>
+                  <button
+                    onClick={() => copy(p, idx)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-700 bg-slate-800/60 text-slate-300 transition hover:bg-slate-800"
+                    title={`复制 ${value}`}
+                  >
+                    {copied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-      <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
-        点击复制按钮即可得到带协议格式的地址（如{' '}
-        <span className="font-mono text-slate-400">socks5://1.2.3.4:1080</span>
-        ），可直接用于 curl / 浏览器 / 爬虫。
-      </p>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              onClick={copyAll}
+              disabled={allPure.length === 0}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition',
+                allPure.length === 0
+                  ? 'cursor-not-allowed border-slate-700 bg-slate-800/40 text-slate-500'
+                  : copiedAll
+                    ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                    : 'border-cyan-500/50 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/25',
+              )}
+              title={`一键复制全部 ${allPure.length} 个纯净 IP（每行一个，带协议格式）`}
+            >
+              {copiedAll ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <ClipboardList className="h-3.5 w-3.5" />
+              )}
+              {copiedAll ? '已复制' : `一键复制全部（${allPure.length} 个）`}
+            </button>
+          </div>
+
+          <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+            上方列出延迟最低的 5 个；"一键复制全部"会复制当前代理池中所有纯净 IP，
+            每行一个、带协议格式（如{' '}
+            <span className="font-mono text-slate-400">socks5://1.2.3.4:1080</span>
+            ），可直接用于 curl / 浏览器 / 爬虫。
+          </p>
+        </>
+      )}
     </div>
   );
 }
