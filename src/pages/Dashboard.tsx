@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { StatCard } from '@/components/StatCard';
-import { TunnelCard } from '@/components/TunnelCard';
+import { PureProxyCard } from '@/components/PureProxyCard';
 import { FilterBar, type PureFilter, type SortKey } from '@/components/FilterBar';
 import { ProxyTable } from '@/components/ProxyTable';
 import { useProxySocket } from '@/hooks/useProxySocket';
@@ -127,7 +127,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <TunnelCard poolSize={stats?.total ?? 0} />
+          <PureProxyCard proxies={proxies} />
         </div>
         <div className="space-y-4">
           <ProtocolBreakdown byProtocol={byProto} total={stats?.total ?? 0} />
